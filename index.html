@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5, user-scalable=yes">
+    <title>Leitor de PDF com Síntese de Voz</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="mobileVoiceHint" style="text-align: center; padding: 10px; background: #fef3c7; color: #92400e; font-size: 14px; display: none;">
+    Toque na tela ou clique em "Testar Voz" para ativar o áudio.
+</div>
+
+</head>
+<body>
+<div id="mobileVoiceHint" style="text-align: center; padding: 10px; background: #fef3c7; color: #92400e; font-size: 14px; display: none;">
+    Toque na tela ou clique em "Testar Voz" para ativar o áudio.
+</div>
+    <div class="reading-progress" id="readingProgress"></div>
+    
+    <!-- Debug Info -->
+    <div class="debug-info" id="debugInfo"></div>
+    
+    <div class="header" id="header">
+        <div class="header-content">
+            <div class="header-row">
+                <div class="upload-container">
+                    <input type="file" id="fileInput" class="file-input" accept=".pdf">
+                    <button class="btn" onclick="document.getElementById('fileInput').click()">
+                        📄 Carregar PDF
+                    </button>
+                    <span class="file-name" id="fileName"></span>
+                </div>
+
+                <div class="controls">
+                    <div class="font-controls">
+                        <button class="btn btn-secondary btn-small" onclick="decreaseFontSize()" title="Diminuir fonte">A-</button>
+                        <span class="font-size-display" id="fontSizeDisplay">16px</span>
+                        <button class="btn btn-secondary btn-small" onclick="increaseFontSize()" title="Aumentar fonte">A+</button>
+                    </div>
+
+                    <select id="fontFamilySelect" class="select" onchange="changeFontFamily()" title="Família da fonte">
+                        <option value="'Segoe UI', Tahoma, Geneva, Verdana, sans-serif">Segoe UI</option>
+                        <option value="'Times New Roman', Times, serif">Times New Roman</option>
+                        <option value="'Arial', Helvetica, sans-serif">Arial</option>
+                        <option value="'Georgia', serif">Georgia</option>
+                        <option value="'Courier New', Courier, monospace">Courier New</option>
+                    </select>
+
+                    <button class="btn btn-secondary btn-small" onclick="resetFontSize()" title="Resetar fonte">🔄</button>
+                    <button class="btn btn-secondary btn-small" onclick="toggleFullscreen()" id="fullscreenBtn" title="Tela cheia">🔳</button>
+                    <button class="btn btn-secondary btn-icon" onclick="toggleTheme()" id="themeToggle" title="Alternar tema">🌙</button>
+                    <button class="btn btn-secondary btn-icon" onclick="toggleTTSControls()" id="ttsToggle" style="display: none;" title="Controles de voz">🔊</button>
+                </div>
+            </div>
+
+            <div class="tts-controls hidden" id="ttsControls">
+                <div class="tts-row">
+                    <div class="control-group">
+                        <span class="status-indicator" id="statusIndicator"></span>
+                        <button class="btn" onclick="toggleReading()" id="playPauseBtn">
+                            ▶️ Reproduzir
+                        </button>
+                        <button class="btn btn-secondary" onclick="stopReading()">
+                            ⏹️ Parar
+                        </button>
+                        <button class="btn btn-secondary" onclick="readSelectedText()" id="readSelectionBtn" style="display: none;">
+                            📖 Ler Seleção
+                        </button>
+                        <button class="btn btn-secondary btn-small" onclick="forceLoadVoices()" id="loadVoicesBtn">
+                            🔄 Recarregar Vozes
+                        </button>
+                    </div>
+                </div>
+
+                <div class="tts-row">
+                    <div class="control-group">
+                        <label for="voiceSelect" class="text-small font-bold">Voz:</label>
+                        <select id="voiceSelect" class="select" onchange="changeVoice()">
+                            <option value="">Carregando vozes...</option>
+                        </select>
+                        <div class="voice-loading hidden" id="voiceLoading">
+                            <div class="spinner-small"></div>
+                            <span>Carregando...</span>
+                        </div>
+                    </div>
+
+                    <div class="slider-container">
+                        <label class="text-small font-bold">Velocidade:</label>
+                        <input type="range" id="rateSlider" class="slider" min="0.5" max="2" step="0.1" value="1" onchange="updateRate()">
+                        <span id="rateValue" class="text-small">1.0</span>
+                    </div>
+
+                    <div class="slider-container">
+                        <label class="text-small font-bold">Volume:</label>
+                        <input type="range" id="volumeSlider" class="slider" min="0" max="1" step="0.1" value="1" onchange="updateVolume()">
+                        <span id="volumeValue" class="text-small">100%</span>
+                    </div>
+                </div>
+
+                <div class="selected-text-preview hidden" id="selectedTextPreview">
+                    <div class="font-bold mb-2">Texto selecionado:</div>
+                    <div id="selectedTextContent"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating Controls for Fullscreen -->
+    <div class="floating-controls" id="floatingControls">
+        <button class="btn" onclick="toggleQuickPanel()" title="Painel rápido">⚙️</button>
+        <button class="btn" onclick="handleFloatingPlayClick()" id="floatingPlayBtn" title="Play/Pause">▶️</button>
+        <button class="btn" onclick="exitFullscreen()" title="Sair da tela cheia">❌</button>
+    </div>
+
+    <!-- Quick Access Panel -->
+    <div class="quick-panel" id="quickPanel">
+        <h3>Controles Rápidos</h3>
+        
+        <div class="control-group">
+            <button class="btn" onclick="handleQuickPlayClick()">
+                <span id="quickPlayIcon">▶️</span> <span id="quickPlayText">Reproduzir</span>
+            </button>
+            <button class="btn btn-secondary" onclick="stopReading()">⏹️ Parar</button>
+        </div>
+
+        <div class="control-group">
+            <label>Fonte</label>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <button class="btn btn-secondary" onclick="decreaseFontSize()" style="width: 40px;">A-</button>
+                <span id="quickFontSize" style="color: white; min-width: 40px; text-align: center;">16px</span>
+                <button class="btn btn-secondary" onclick="increaseFontSize()" style="width: 40px;">A+</button>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label for="quickVoiceSelect">Voz</label>
+            <select id="quickVoiceSelect" class="select" onchange="changeVoiceFromQuick()" style="width: 100%;">
+                <option value="">Carregando vozes...</option>
+            </select>
+            <button class="btn btn-secondary" onclick="forceLoadVoices()" style="margin-top: 5px;">🔄 Recarregar Vozes</button>
+        </div>
+
+        <div class="control-group">
+            <label for="quickRateSlider">Velocidade: <span id="quickRateValue">1.0</span></label>
+            <input type="range" id="quickRateSlider" class="slider" min="0.5" max="2" step="0.1" value="1" onchange="updateRateFromQuick()" style="width: 100%;">
+        </div>
+
+        <div class="control-group">
+            <label for="quickVolumeSlider">Volume: <span id="quickVolumeValue">100%</span></label>
+            <input type="range" id="quickVolumeSlider" class="slider" min="0" max="1" step="0.1" value="1" onchange="updateVolumeFromQuick()" style="width: 100%;">
+        </div>
+
+        <div class="control-group">
+            <button class="btn btn-secondary" onclick="toggleTheme()">
+                <span id="quickThemeIcon">🌙</span> Alternar Tema
+            </button>
+            <button class="btn btn-secondary" onclick="resetFontSize()">🔄 Reset Fonte</button>
+        </div>
+
+        <div class="control-group">
+            <button class="btn btn-secondary" onclick="toggleDebugInfo()">🐛 Debug Info</button>
+            <button class="btn btn-secondary" onclick="testSpeech()">🎤 Testar Voz</button>
+        </div>
+    </div>
+
+    <div class="main-content" id="mainContent">
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-text">
+                <div class="upload-icon">📄</div>
+                <div>Arraste e solte um arquivo PDF aqui</div>
+                <div>ou clique em "Carregar PDF"</div>
+                <div style="margin-top: 15px; font-size: 14px;">O texto será extraído e formatado para leitura com síntese de voz</div>
+            </div>
+        </div>
+
+        <div class="reader-container" id="readerContainer">
+            <div class="loading hidden" id="loading">
+                <div class="spinner"></div>
+                <div>Extraindo texto do PDF...</div>
+            </div>
+            <div class="page-info" id="pageInfo"></div>
+            <div class="reader-content" id="readerContent"></div>
+        </div>
+    </div>
+
+    
+<script src="script.js"></script>
+</body>
+</html>
